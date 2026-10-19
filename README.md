@@ -1,6 +1,8 @@
 # Gia Khiêm — Blog cá nhân
 
-Giao diện blog về tài chính bằng React, TypeScript và Vite. Có tìm kiếm không dấu, lọc chủ đề, cửa sổ đọc bài và bố cục responsive. Các bài hiện tại là nội dung mẫu.
+Blog cá nhân của Gia Khiêm, xây dựng bằng React, TypeScript và Vite. Một không gian để chia sẻ chuyện thường ngày, công nghệ, ghi chép từ sách và những chuyến đi.
+
+Giao diện tông kem/cam với minh họa cửa sổ buổi sáng, trình soạn thảo code, sổ tay và phong cảnh. Hỗ trợ bố cục responsive, tìm kiếm tiếng Việt không dấu, lọc chủ đề và mở bài viết để đọc. Các bài hiện tại là nội dung mẫu.
 
 ## Chạy trên máy
 
@@ -29,7 +31,9 @@ Nếu dùng nhánh khác, sửa danh sách `branches` trong `.github/workflows/d
 
 ## Chỉnh nội dung
 
-- `src/App.tsx`: danh sách `articles`, tên, giới thiệu và liên kết GitHub.
+- `src/App.tsx`: danh sách `articles` (tiêu đề, chủ đề, mô tả, nội dung và minh họa), bộ lọc `categories`, tên, giới thiệu và liên kết GitHub.
+- Khi thêm chủ đề mới vào bài viết, thêm tên tương ứng vào `categories` để hiển thị trong bộ lọc.
+- Minh họa có sẵn: `window`, `code`, `notebook`, `sun`; chọn bằng trường `art` của bài viết.
 - `src/style.css`: màu sắc, font chữ và bố cục.
 - `index.html`: tiêu đề, mô tả SEO.
 
