@@ -2,7 +2,7 @@ import Admin from './Admin';
 import './admin.css';
 import { useEffect, useRef, useState } from 'react';
 
-type Article = { id: number; category: string; title: string; description: string; readTime: string; art: string; body: string[] };
+type Article = { id: number; category: string; title: string; description: string; readTime: string; art: string; body: string[]; slug?: string; coverImageUrl?: string | null };
 
 // Sample content: replace with your own stories before publishing.
 const sampleArticles: Article[] = [
@@ -79,9 +79,9 @@ export default function App() {
       .then(response => { if (!response.ok) throw new Error('API unavailable'); return response.json(); })
       .then(data => {
         if (!Array.isArray(data.items)) return;
-        setArticles(data.items.map((post: { id: number; slug: string; title: string; summary: string; category: string; }) => ({
+        setArticles(data.items.map((post: { id: number; slug: string; title: string; summary: string; category: string; cover_image_url: string | null; }) => ({
           id: post.id, title: post.title, description: post.summary, category: post.category,
-          readTime: 'Read article', art: 'notebook', body: [], slug: post.slug,
+          readTime: 'Read article', art: 'notebook', body: [], slug: post.slug, coverImageUrl: post.cover_image_url,
         })));
       })
       .catch(() => { /* Keep sample posts until backend is deployed. */ });
@@ -123,22 +123,22 @@ export default function App() {
         <span className="intro-note">A few thoughts.<br />A space of my own.</span>
       </section>
       <section className="featured" aria-label="Featured story">
-        <button className="featured-art" onClick={() => openArticle(articles[0])} aria-label={`Read ${articles[0].title}`}><Art kind={articles[0].art} hero /></button>
+        <button className="featured-art" onClick={() => openArticle(articles[0])} aria-label={`Read ${articles[0].title}`}>{articles[0].coverImageUrl ? <img src={articles[0].coverImageUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} /> : <Art kind={articles[0].art} hero />}</button>
         <div className="featured-copy">
           <div className="eyebrow"><span className="tiny-star">✦</span> FEATURED STORY</div>
           <span className="category-label">{articles[0].category}</span>
           <h2><button onClick={() => openArticle(articles[0])}>{articles[0].title}</button></h2>
           <p>{articles[0].description}</p>
-          <div className="featured-bottom"><span className="meta">Sample post <span>·</span> {articles[0].readTime}</span><button className="round-arrow" aria-label="Read featured story" onClick={() => openArticle(articles[0])}>↗</button></div>
+          <div className="featured-bottom"><span className="meta">Gia Khiêm <span>·</span> {articles[0].readTime}</span><button className="round-arrow" aria-label="Read featured story" onClick={() => openArticle(articles[0])}>↗</button></div>
         </div>
       </section>
       <section className="posts-section" id="articles">
         <div className="section-heading"><div><span className="eyebrow muted">STORIES & NOTES</span><h2>Latest stories<span>.</span></h2></div><span className="post-count">{articles.length.toString().padStart(2, '0')} POSTS</span></div>
         <div className="toolbar"><div className="filters" role="group" aria-label="Filter by topic">{activeCategories.map(item => <button key={item} className={item === category ? 'active' : ''} onClick={() => setCategory(item)} aria-pressed={item === category}>{item}</button>)}</div><label className="search"><span aria-hidden="true">⌕</span><input type="search" placeholder="Search stories…" aria-label="Search stories" value={search} onChange={event => setSearch(event.target.value)} /></label></div>
         <div className="posts" aria-live="polite">{visible.map(article => <article className="post" key={article.id}>
-          <button className="post-art" onClick={() => openArticle(article)} aria-label={`Read ${article.title}`}><Art kind={article.art} /><span className="post-open">↗</span></button>
+          <button className="post-art" onClick={() => openArticle(article)} aria-label={`Read ${article.title}`}>{article.coverImageUrl ? <img src={article.coverImageUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} /> : <Art kind={article.art} />}<span className="post-open">↗</span></button>
           <div className="post-meta"><span className="category-label">{article.category}</span><span>{article.readTime}</span></div>
-          <h3><button onClick={() => openArticle(article)}>{article.title}</button></h3><p>{article.description}</p><span className="sample-note">Sample story <span>—</span> Gia Khiêm</span>
+          <h3><button onClick={() => openArticle(article)}>{article.title}</button></h3><p>{article.description}</p><span className="sample-note">Written by Gia Khiêm</span>
         </article>)}</div>
         {visible.length === 0 && <div className="empty"><h3>No matching stories found.</h3><p>Try another search term.</p><button onClick={() => { setSearch(''); setCategory('All'); }}>View all stories ↗</button></div>}
       </section>
@@ -146,7 +146,7 @@ export default function App() {
     </main>
     <footer className="footer wrapper"><span>© {new Date().getFullYear()} Gia Khiêm<span className="footer-dot">.</span></span><span>Small moments, lasting memories.</span><a href="#">Back to top ↑</a></footer>
     <dialog ref={dialog} className="article-dialog" aria-labelledby="article-title" onCancel={() => setSelected(null)} onClick={event => { if (event.target === event.currentTarget) setSelected(null); }} onClose={() => setSelected(null)}>
-      {selected && <div className="article-content"><button className="close-dialog" aria-label="Close article" autoFocus onClick={() => setSelected(null)}>✕</button><span className="category-label">{selected.category}</span><h2 id="article-title">{selected.title}</h2><div className="meta">Gia Khiêm · {selected.readTime} · Sample content</div><Art kind={selected.art} />{selected.body.map((paragraph, index) => <p key={index}>{paragraph}</p>)}<button className="text-link" onClick={() => setSelected(null)}>← Back to stories</button></div>}
+      {selected && <div className="article-content"><button className="close-dialog" aria-label="Close article" autoFocus onClick={() => setSelected(null)}>✕</button><span className="category-label">{selected.category}</span><h2 id="article-title">{selected.title}</h2><div className="meta">Gia Khiêm · {selected.readTime}</div>{selected.coverImageUrl ? <img src={selected.coverImageUrl} alt="" style={{maxWidth:"100%"}} /> : <Art kind={selected.art} />}{selected.body.map((paragraph, index) => <p key={index}>{paragraph}</p>)}<button className="text-link" onClick={() => setSelected(null)}>← Back to stories</button></div>}
     </dialog>
   </>;
 }
