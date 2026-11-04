@@ -3,6 +3,18 @@ name: Deploy blog to EC2
 on:
   push:
     branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.*'
+      - 'tsconfig*.json'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'nginx.conf'
+      - '.github/workflows/deploy-ec2.yml'
   workflow_dispatch:
 
 permissions:
