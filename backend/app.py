@@ -67,7 +67,7 @@ class PostInput(BaseModel):
     @field_validator("cover_image_url")
     @classmethod
     def valid_image_url(cls, value: str | None):
-        if value is not None and not (value.startswith("https://") or (value.startswith("/assets/") or re.fullmatch(r"/api/media/[0-9a-f]{32}\\.(?:jpg|png|webp|gif)", value))):
+        if value is not None and not (value.startswith("https://") or (value.startswith("/assets/") or re.fullmatch(r"/api/media/[0-9a-f]{32}\.(?:jpg|png|webp|gif)", value))):
             raise ValueError("cover_image_url must be HTTPS or a local /assets/ path")
         return value
 
@@ -248,7 +248,7 @@ async def upload_image(file: UploadFile = File(...)):
 
 @app.get("/api/media/{filename}")
 def get_image(filename: str):
-    if not re.fullmatch(r"[0-9a-f]{32}\\.(?:jpg|png|webp|gif)", filename):
+    if not re.fullmatch(r"[0-9a-f]{32}\.(?:jpg|png|webp|gif)", filename):
         raise HTTPException(status_code=404, detail="Image not found")
     try:
         obj = s3_client().get_object(Bucket=S3_BUCKET, Key="images/" + filename)
