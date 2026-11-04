@@ -89,14 +89,14 @@ export default function App() {
         <a className="text-link" href="#articles">Explore the stories <span>↓</span></a>
         <span className="intro-note">A few thoughts.<br />A space of my own.</span>
       </section>
-      <section className="featured" aria-label="Articles nổi bật">
+      <section className="featured" aria-label="Featured story">
         <button className="featured-art" onClick={() => setSelected(articles[0])} aria-label={`Read ${articles[0].title}`}><Art kind={articles[0].art} hero /></button>
         <div className="featured-copy">
           <div className="eyebrow"><span className="tiny-star">✦</span> FEATURED STORY</div>
           <span className="category-label">{articles[0].category}</span>
           <h2><button onClick={() => setSelected(articles[0])}>{articles[0].title}</button></h2>
           <p>{articles[0].description}</p>
-          <div className="featured-bottom"><span className="meta">Articles mẫu <span>·</span> {articles[0].readTime}</span><button className="round-arrow" aria-label="Read featured story" onClick={() => setSelected(articles[0])}>↗</button></div>
+          <div className="featured-bottom"><span className="meta">Sample post <span>·</span> {articles[0].readTime}</span><button className="round-arrow" aria-label="Read featured story" onClick={() => setSelected(articles[0])}>↗</button></div>
         </div>
       </section>
       <section className="posts-section" id="articles">
@@ -105,7 +105,7 @@ export default function App() {
         <div className="posts" aria-live="polite">{visible.map(article => <article className="post" key={article.id}>
           <button className="post-art" onClick={() => setSelected(article)} aria-label={`Read ${article.title}`}><Art kind={article.art} /><span className="post-open">↗</span></button>
           <div className="post-meta"><span className="category-label">{article.category}</span><span>{article.readTime}</span></div>
-          <h3><button onClick={() => setSelected(article)}>{article.title}</button></h3><p>{article.description}</p><span className="sample-note">Notes mẫu <span>—</span> Gia Khiêm</span>
+          <h3><button onClick={() => setSelected(article)}>{article.title}</button></h3><p>{article.description}</p><span className="sample-note">Sample story <span>—</span> Gia Khiêm</span>
         </article>)}</div>
         {visible.length === 0 && <div className="empty"><h3>No matching stories found.</h3><p>Try another search term.</p><button onClick={() => { setSearch(''); setCategory('All'); }}>View all stories ↗</button></div>}
       </section>
