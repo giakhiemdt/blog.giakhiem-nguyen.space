@@ -70,17 +70,29 @@ jobs:
           set -euo pipefail
           image="$1"
           docker pull "$image"
+          wait_for_http() {
+            local url="$1" name="$2"
+            for attempt in $(seq 1 15); do
+              if curl --fail --silent --max-time 3 "$url" >/dev/null 2>&1; then
+                echo "$name is ready (attempt $attempt)"
+                return 0
+              fi
+              if ! docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null | grep -qx true; then
+                echo "$name exited unexpectedly" >&2
+                docker logs --tail 100 "$name" >&2 || true
+                return 1
+              fi
+              sleep 2
+            done
+            echo "$name did not become ready" >&2
+            docker logs --tail 100 "$name" >&2 || true
+            return 1
+          }
           docker rm -f blog-candidate >/dev/null 2>&1 || true
           docker run -d --name blog-candidate \
             -p 127.0.0.1:8081:80 "$image"
           trap 'docker rm -f blog-candidate >/dev/null 2>&1 || true' EXIT
-          for i in 1 2 3 4 5; do
-            if curl --fail --silent --show-error http://127.0.0.1:8081/ >/dev/null; then
-              break
-            fi
-            sleep 2
-          done
-          curl --fail --silent --show-error http://127.0.0.1:8081/ >/dev/null
+          wait_for_http http://127.0.0.1:8081/ blog-candidate
           docker rm -f blog-candidate >/dev/null
           trap - EXIT
 
@@ -96,8 +108,7 @@ jobs:
 
           if docker run -d --name blog --restart unless-stopped \
             -p 127.0.0.1:8080:80 "$image" \
-            && curl --retry 5 --retry-delay 2 --retry-connrefused \
-              --fail --silent --show-error http://127.0.0.1:8080/ >/dev/null; then
+            && wait_for_http http://127.0.0.1:8080/ blog; then
             echo "Deployment successful: $image"
           else
             echo "Deployment failed; restoring previous container if available" >&2
