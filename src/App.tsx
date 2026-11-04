@@ -1,9 +1,11 @@
+import Admin from './Admin';
+import './admin.css';
 import { useEffect, useRef, useState } from 'react';
 
 type Article = { id: number; category: string; title: string; description: string; readTime: string; art: string; body: string[] };
 
 // Sample content: replace with your own stories before publishing.
-const articles: Article[] = [
+const sampleArticles: Article[] = [
   {
     id: 1, category: 'Everyday Life', title: 'A Slower Kind of Morning',
     description: 'Open the window, make a cup of coffee, and let the day begin with a moment of quiet.',
@@ -49,7 +51,6 @@ const articles: Article[] = [
     ]
   },
 ];
-const categories = ['All', 'Everyday Life', 'Technology', 'Notes', 'Travel & Discovery'];
 const normalize = (value: string) => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
 
 function Art({ kind, hero = false }: { kind: string; hero?: boolean }) {
@@ -63,17 +64,49 @@ function Art({ kind, hero = false }: { kind: string; hero?: boolean }) {
 }
 
 export default function App() {
+  const [articles, setArticles] = useState<Article[]>(sampleArticles);
   const [category, setCategory] = useState('All');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Article | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
+  const activeCategories = ['All', ...new Set(articles.map(article => article.category))];
   const visible = articles.filter(article => (category === 'All' || article.category === category) && normalize(`${article.title} ${article.description}`).includes(normalize(search)));
+
+  useEffect(() => {
+    if (window.location.pathname.startsWith('/admin')) return;
+    const controller = new AbortController();
+    fetch('/api/posts?limit=100', { signal: controller.signal })
+      .then(response => { if (!response.ok) throw new Error('API unavailable'); return response.json(); })
+      .then(data => {
+        if (!Array.isArray(data.items)) return;
+        setArticles(data.items.map((post: { id: number; slug: string; title: string; summary: string; category: string; }) => ({
+          id: post.id, title: post.title, description: post.summary, category: post.category,
+          readTime: 'Read article', art: 'notebook', body: [], slug: post.slug,
+        })));
+      })
+      .catch(() => { /* Keep sample posts until backend is deployed. */ });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     if (selected) { dialog.current?.showModal(); document.body.style.overflow = 'hidden'; }
     else { dialog.current?.close(); document.body.style.overflow = ''; }
     return () => { document.body.style.overflow = ''; };
   }, [selected]);
+
+  if (window.location.pathname.startsWith('/admin')) return <Admin />;
+  if (articles.length === 0) return <main className="wrapper"><header className="header"><a href="/">gk.</a></header><h1>Stories coming soon.</h1><p>New posts will appear here when published.</p></main>;
+
+  async function openArticle(article: Article) {
+    const slug = (article as Article & { slug?: string }).slug;
+    if (!slug) { setSelected(article); return; }
+    try {
+      const response = await fetch('/api/posts/' + encodeURIComponent(slug));
+      if (!response.ok) throw new Error('Unable to load article');
+      const post = await response.json();
+      setSelected({ ...article, body: [post.content] });
+    } catch { setSelected(article); }
+  }
 
   return <>
     <header className="header wrapper">
@@ -90,22 +123,22 @@ export default function App() {
         <span className="intro-note">A few thoughts.<br />A space of my own.</span>
       </section>
       <section className="featured" aria-label="Featured story">
-        <button className="featured-art" onClick={() => setSelected(articles[0])} aria-label={`Read ${articles[0].title}`}><Art kind={articles[0].art} hero /></button>
+        <button className="featured-art" onClick={() => openArticle(articles[0])} aria-label={`Read ${articles[0].title}`}><Art kind={articles[0].art} hero /></button>
         <div className="featured-copy">
           <div className="eyebrow"><span className="tiny-star">✦</span> FEATURED STORY</div>
           <span className="category-label">{articles[0].category}</span>
-          <h2><button onClick={() => setSelected(articles[0])}>{articles[0].title}</button></h2>
+          <h2><button onClick={() => openArticle(articles[0])}>{articles[0].title}</button></h2>
           <p>{articles[0].description}</p>
-          <div className="featured-bottom"><span className="meta">Sample post <span>·</span> {articles[0].readTime}</span><button className="round-arrow" aria-label="Read featured story" onClick={() => setSelected(articles[0])}>↗</button></div>
+          <div className="featured-bottom"><span className="meta">Sample post <span>·</span> {articles[0].readTime}</span><button className="round-arrow" aria-label="Read featured story" onClick={() => openArticle(articles[0])}>↗</button></div>
         </div>
       </section>
       <section className="posts-section" id="articles">
         <div className="section-heading"><div><span className="eyebrow muted">STORIES & NOTES</span><h2>Latest stories<span>.</span></h2></div><span className="post-count">{articles.length.toString().padStart(2, '0')} POSTS</span></div>
-        <div className="toolbar"><div className="filters" role="group" aria-label="Filter by topic">{categories.map(item => <button key={item} className={item === category ? 'active' : ''} onClick={() => setCategory(item)} aria-pressed={item === category}>{item}</button>)}</div><label className="search"><span aria-hidden="true">⌕</span><input type="search" placeholder="Search stories…" aria-label="Search stories" value={search} onChange={event => setSearch(event.target.value)} /></label></div>
+        <div className="toolbar"><div className="filters" role="group" aria-label="Filter by topic">{activeCategories.map(item => <button key={item} className={item === category ? 'active' : ''} onClick={() => setCategory(item)} aria-pressed={item === category}>{item}</button>)}</div><label className="search"><span aria-hidden="true">⌕</span><input type="search" placeholder="Search stories…" aria-label="Search stories" value={search} onChange={event => setSearch(event.target.value)} /></label></div>
         <div className="posts" aria-live="polite">{visible.map(article => <article className="post" key={article.id}>
-          <button className="post-art" onClick={() => setSelected(article)} aria-label={`Read ${article.title}`}><Art kind={article.art} /><span className="post-open">↗</span></button>
+          <button className="post-art" onClick={() => openArticle(article)} aria-label={`Read ${article.title}`}><Art kind={article.art} /><span className="post-open">↗</span></button>
           <div className="post-meta"><span className="category-label">{article.category}</span><span>{article.readTime}</span></div>
-          <h3><button onClick={() => setSelected(article)}>{article.title}</button></h3><p>{article.description}</p><span className="sample-note">Sample story <span>—</span> Gia Khiêm</span>
+          <h3><button onClick={() => openArticle(article)}>{article.title}</button></h3><p>{article.description}</p><span className="sample-note">Sample story <span>—</span> Gia Khiêm</span>
         </article>)}</div>
         {visible.length === 0 && <div className="empty"><h3>No matching stories found.</h3><p>Try another search term.</p><button onClick={() => { setSearch(''); setCategory('All'); }}>View all stories ↗</button></div>}
       </section>
