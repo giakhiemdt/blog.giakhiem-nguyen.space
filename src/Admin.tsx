@@ -18,6 +18,7 @@ export default function Admin() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   async function request(path: string, options: RequestInit = {}, credential = auth) {
     const response = await fetch(endpoint + path, {
@@ -59,6 +60,23 @@ export default function Admin() {
     catch (err) { setError(String(err)); }
     finally { setBusy(false); }
   }
+  async function uploadImage(file: File | undefined) {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { setError('Image must be 5 MiB or smaller.'); return; }
+    setUploading(true); setError(''); setMessage('');
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const response = await fetch('/api/admin/images', {
+        method: 'POST', headers: { Authorization: 'Basic ' + auth }, body, cache: 'no-store',
+      });
+      if (!response.ok) throw new Error(`Upload failed (HTTP ${response.status})`);
+      const data: { url: string } = await response.json();
+      setForm(prev => ({ ...prev, cover_image_url: data.url }));
+      setMessage('Image uploaded to S3.');
+    } catch (err) { setError(String(err)); }
+    finally { setUploading(false); }
+  }
   const field = (key: keyof Editor, value: string) => setForm(prev => ({ ...prev, [key]: value }));
   return <main className="admin-page">
     <header className="admin-header"><a href="/">← Back to blog</a><h1>Blog administration</h1>
@@ -84,8 +102,10 @@ export default function Admin() {
           <label>Summary<textarea maxLength={500} rows={3} value={form.summary} onChange={e => field('summary', e.target.value)} /></label>
           <label>Content (plain text / Markdown source)<textarea rows={16} maxLength={100000} value={form.content} onChange={e => field('content', e.target.value)} /></label>
           <label>Cover image HTTPS URL (optional)<input value={form.cover_image_url || ''} onChange={e => setForm(prev => ({ ...prev, cover_image_url: e.target.value || null }))} /></label>
+          <label>Upload cover image to S3<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={uploading} onChange={e => { void uploadImage(e.target.files?.[0]); e.target.value = ''; }} /></label>
+          {form.cover_image_url && <img src={form.cover_image_url} alt="Cover preview" style={{ maxWidth: 240, maxHeight: 160, objectFit: 'contain' }} />}
           <label>Status<select value={form.status} onChange={e => field('status', e.target.value)}><option value="draft">Draft</option><option value="published">Published</option></select></label>
-          <button disabled={busy}>{busy ? 'Saving…' : 'Save post'}</button>
+          <button disabled={busy || uploading}>{busy ? 'Saving…' : 'Save post'}</button>
         </form>
       </div>}
     {error && <p role="alert" className="admin-error">{error}</p>}
