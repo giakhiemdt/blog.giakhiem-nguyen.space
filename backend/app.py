@@ -2,11 +2,18 @@
 import os
 import re
 import secrets
+import io
+import uuid
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+import boto3
+from botocore.exceptions import BotoCoreError, ClientError
+from PIL import Image, UnidentifiedImageError
+
+from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel, Field, field_validator
 
@@ -15,6 +22,10 @@ app = FastAPI(title="Gia Khiem Blog API", version="0.2.0", docs_url=None, redoc_
 basic = HTTPBasic()
 ADMIN_USER = os.environ.get("BLOG_ADMIN_USER", "")
 ADMIN_PASSWORD = os.environ.get("BLOG_ADMIN_PASSWORD", "")
+S3_BUCKET = os.environ.get("BLOG_S3_BUCKET", "")
+MAX_IMAGE_BYTES = 5 * 1024 * 1024
+ALLOWED_FORMATS = {"JPEG": ("image/jpeg", "jpg"), "PNG": ("image/png", "png"), "WEBP": ("image/webp", "webp"), "GIF": ("image/gif", "gif")}
+
 
 
 def require_admin(credentials: HTTPBasicCredentials = Depends(basic)):
@@ -56,7 +67,7 @@ class PostInput(BaseModel):
     @field_validator("cover_image_url")
     @classmethod
     def valid_image_url(cls, value: str | None):
-        if value is not None and not (value.startswith("https://") or value.startswith("/assets/")):
+        if value is not None and not (value.startswith("https://") or (value.startswith("/assets/") or re.fullmatch(r"/api/media/[0-9a-f]{32}\\.(?:jpg|png|webp|gif)", value))):
             raise ValueError("cover_image_url must be HTTPS or a local /assets/ path")
         return value
 
@@ -202,3 +213,62 @@ def delete_post(post_id: int):
         db.commit()
         if cur.rowcount == 0:
             raise HTTPException(status_code=404, detail="Post not found")
+
+
+def s3_client():
+    if not S3_BUCKET:
+        raise HTTPException(status_code=503, detail="Image storage is not configured")
+    return boto3.client("s3")
+
+
+@app.post("/api/admin/images", status_code=201, dependencies=[Depends(require_admin)])
+async def upload_image(file: UploadFile = File(...)):
+    """Small single-author uploads: private S3 object, served via the public media endpoint."""
+    raw = await file.read(MAX_IMAGE_BYTES + 1)
+    if len(raw) > MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Image exceeds 5 MiB limit")
+    try:
+        with Image.open(io.BytesIO(raw)) as image:
+            fmt = image.format
+            image.verify()
+    except (UnidentifiedImageError, OSError, ValueError):
+        raise HTTPException(status_code=415, detail="Invalid image")
+    if fmt not in ALLOWED_FORMATS:
+        raise HTTPException(status_code=415, detail="Only JPEG, PNG, WebP and GIF are supported")
+    mime, ext = ALLOWED_FORMATS[fmt]
+    key = f"images/{uuid.uuid4().hex}.{ext}"
+    try:
+        s3_client().put_object(Bucket=S3_BUCKET, Key=key, Body=raw, ContentType=mime,
+                               CacheControl="public, max-age=31536000, immutable",
+                               ServerSideEncryption="AES256")
+    except (BotoCoreError, ClientError):
+        raise HTTPException(status_code=502, detail="Image storage unavailable")
+    return {"url": "/api/media/" + key.removeprefix("images/"), "size": len(raw)}
+
+
+@app.get("/api/media/{filename}")
+def get_image(filename: str):
+    if not re.fullmatch(r"[0-9a-f]{32}\\.(?:jpg|png|webp|gif)", filename):
+        raise HTTPException(status_code=404, detail="Image not found")
+    try:
+        obj = s3_client().get_object(Bucket=S3_BUCKET, Key="images/" + filename)
+    except ClientError as exc:
+        code = exc.response.get("Error", {}).get("Code", "")
+        if code in ("NoSuchKey", "404"):
+            raise HTTPException(status_code=404, detail="Image not found")
+        raise HTTPException(status_code=502, detail="Image storage unavailable")
+    except BotoCoreError:
+        raise HTTPException(status_code=502, detail="Image storage unavailable")
+
+    def chunks():
+        body = obj["Body"]
+        try:
+            for chunk in body.iter_chunks(chunk_size=65536):
+                if chunk:
+                    yield chunk
+        finally:
+            body.close()
+
+    return StreamingResponse(chunks(), media_type=obj["ContentType"],
+                             headers={"Cache-Control": "public, max-age=86400",
+                                      "X-Content-Type-Options": "nosniff"})
